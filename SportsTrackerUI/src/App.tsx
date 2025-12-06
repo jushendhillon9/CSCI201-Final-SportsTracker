@@ -22,11 +22,19 @@ function App() {
 
   useEffect(() => {
     // Check for existing session
-    const savedUser = localStorage.getItem('cfb_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    try {
+      const savedUser = localStorage.getItem('cfb_user');
+      if (savedUser) {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+      }
+    } catch (error) {
+      // If there's invalid data in localStorage, clear it
+      console.error('Error parsing user data:', error);
+      localStorage.removeItem('cfb_user');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   const handleLogin = (userData: User) => {

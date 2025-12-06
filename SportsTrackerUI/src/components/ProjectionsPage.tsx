@@ -4,15 +4,63 @@ import { Badge } from './figma-ui/badge';
 import { Progress } from './figma-ui/progress';
 import { Alert, AlertDescription } from './figma-ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './figma-ui/table';
-import { TrendingUp, AlertCircle, Target, Zap } from 'lucide-react';
+import { Button } from './figma-ui/button';
+import { TrendingUp, AlertCircle, Target, Zap, Lock } from 'lucide-react';
 import { mockProjections, mockPlayers } from '../lib/mockData';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { canAccessProjections, getUserPermissions } from '../lib/userPermissions';
+import { useNavigate } from 'react-router-dom';
 
 interface ProjectionsPageProps {
   user: User;
 }
 
 export default function ProjectionsPage({ user }: ProjectionsPageProps) {
+  const navigate = useNavigate();
+  
+  if (!canAccessProjections(user)) {
+    const permissions = getUserPermissions(user);
+    return (
+      <div className="space-y-6">
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <Lock className="h-6 w-6 text-orange-600" />
+              <div>
+                <CardTitle className="text-orange-900">Projections Not Available</CardTitle>
+                <CardDescription className="text-orange-700">
+                  This feature requires an authenticated account
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Performance projections are only available for authenticated users. 
+                  As a guest, you have access to:
+                  <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                    <li>Top {permissions.teamsVisible} teams only</li>
+                    <li>{permissions.realtimeDelayMinutes}-minute delayed data</li>
+                    <li>Basic statistics</li>
+                    <li>Current season only</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+              <Button 
+                onClick={() => navigate('/login')}
+                className="w-full md:w-auto"
+              >
+                Sign In to Access Projections
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   // Mock historical data for trend chart
   const generateHistoricalData = (projection: typeof mockProjections[0]) => {
     return [
