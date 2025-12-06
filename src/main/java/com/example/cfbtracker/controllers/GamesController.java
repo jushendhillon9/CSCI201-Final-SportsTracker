@@ -1,8 +1,9 @@
 package com.example.cfbtracker.controllers;
 
-import com.example.cfbtracker.models.Game;
-import com.example.cfbtracker.repositories.GameRepository;
 import org.springframework.web.bind.annotation.*;
+
+import com.example.cfbtracker.dto.GameListItem;
+import com.example.cfbtracker.services.GameService;
 
 import java.util.List;
 
@@ -10,14 +11,14 @@ import java.util.List;
 @RequestMapping("/games")
 public class GamesController {
 
-    private final GameRepository gameRepository;
+    private final GameService gameService;
 
-    public GamesController(GameRepository gameRepository) {
-        this.gameRepository = gameRepository;
+    public GamesController(GameService gameService) {
+        this.gameService = gameService;
     }
 
     @GetMapping
-    public List<Game> getAllGames() {
-        return gameRepository.findAll();
+    public List<GameListItem> getAllGames() {
+        return gameService.getGames(null, null, null, null);
     }
 }

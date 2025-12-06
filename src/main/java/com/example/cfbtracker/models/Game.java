@@ -8,12 +8,11 @@ import java.time.LocalDateTime;
 public class Game {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer gameid;
 
     private Integer season;
     private Integer week;
-    private LocalDateTime game_date;
+    private java.time.OffsetDateTime game_date;
 
     @ManyToOne
     @JoinColumn(name = "home_team_id", nullable = false)
@@ -26,6 +25,9 @@ public class Game {
     private Integer home_score;
     private Integer away_score;
     private String venue;
+    private String status;
+    private String quarter;
+    private String time_remaining;
 
     public Game() {}  // REQUIRED by Hibernate
 
@@ -39,8 +41,8 @@ public class Game {
     public Integer getWeek() { return week; }
     public void setWeek(Integer week) { this.week = week; }
 
-    public LocalDateTime getGame_date() { return game_date; }
-    public void setGame_date(LocalDateTime game_date) { this.game_date = game_date; }
+    public java.time.OffsetDateTime getGame_date() { return game_date; }
+    public void setGame_date(java.time.OffsetDateTime game_date) { this.game_date = game_date; }
 
     public Team getHomeTeam() { return homeTeam; }
     public void setHomeTeam(Team homeTeam) { this.homeTeam = homeTeam; }
@@ -56,4 +58,13 @@ public class Game {
 
     public String getVenue() { return venue; }
     public void setVenue(String venue) { this.venue = venue; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+
+    public String getQuarter() { return quarter; }
+    public void setQuarter(String quarter) { this.quarter = quarter; }
+
+    public String getTime_remaining() { return time_remaining; }
+    public void setTime_remaining(String time_remaining) { this.time_remaining = time_remaining; }
 }

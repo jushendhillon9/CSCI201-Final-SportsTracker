@@ -1,22 +1,24 @@
 package com.example.cfbtracker.controllers;
 
-import com.example.cfbtracker.models.Player;
-import com.example.cfbtracker.repositories.PlayerRepository;
 import org.springframework.web.bind.annotation.*;
+
+import com.example.cfbtracker.dto.PlayerListItem;
+import com.example.cfbtracker.services.PlayerService;
+
 import java.util.List;
 
 @RestController
 @RequestMapping("/players")
 public class PlayersController {
 
-    private final PlayerRepository playerRepository;
+    private final PlayerService playerService;
 
-    public PlayersController(PlayerRepository playerRepository) {
-        this.playerRepository = playerRepository;
+    public PlayersController(PlayerService playerService) {
+        this.playerService = playerService;
     }
 
     @GetMapping
-    public List<Player> getAllPlayers() {
-        return playerRepository.findAll();
+    public List<PlayerListItem> getAllPlayers() {
+        return playerService.getPlayers(null, null, null, false);
     }
 }

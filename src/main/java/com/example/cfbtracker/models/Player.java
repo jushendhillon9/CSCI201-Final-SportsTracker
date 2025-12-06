@@ -7,12 +7,16 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 public class Player {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer playerid;
 
     private String name;
     private String position;
     private Integer jersey_number;
+    private String year;
+    private Integer passing_yards;
+    private Integer rushing_yards;
+    private Integer receiving_yards;
+    private String photo_url;
 
     @ManyToOne
     @JoinColumn(name = "teamid", nullable = false)
@@ -51,6 +55,46 @@ public class Player {
 
     public void setJersey_number(Integer jersey_number) {
         this.jersey_number = jersey_number;
+    }
+
+    public String getYear() {
+        return year;
+    }
+
+    public void setYear(String year) {
+        this.year = year;
+    }
+
+    public Integer getPassing_yards() {
+        return passing_yards;
+    }
+
+    public void setPassing_yards(Integer passing_yards) {
+        this.passing_yards = passing_yards;
+    }
+
+    public Integer getRushing_yards() {
+        return rushing_yards;
+    }
+
+    public void setRushing_yards(Integer rushing_yards) {
+        this.rushing_yards = rushing_yards;
+    }
+
+    public Integer getReceiving_yards() {
+        return receiving_yards;
+    }
+
+    public void setReceiving_yards(Integer receiving_yards) {
+        this.receiving_yards = receiving_yards;
+    }
+
+    public String getPhoto_url() {
+        return photo_url;
+    }
+
+    public void setPhoto_url(String photo_url) {
+        this.photo_url = photo_url;
     }
 
     public Team getTeam() {

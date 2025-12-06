@@ -1,7 +1,7 @@
 package com.example.cfbtracker.controllers;
 
 import com.example.cfbtracker.models.Team;
-import com.example.cfbtracker.repositories.TeamRepository;
+import com.example.cfbtracker.services.TeamService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -10,14 +10,14 @@ import java.util.List;
 @RequestMapping("/teams")
 public class TeamsController {
 
-    private final TeamRepository teamRepository;
+    private final TeamService teamService;
 
-    public TeamsController(TeamRepository teamRepository) {
-        this.teamRepository = teamRepository;
+    public TeamsController(TeamService teamService) {
+        this.teamService = teamService;
     }
 
     @GetMapping
-    public List<Team> getAllTeams() {
-        return teamRepository.findAll();
+    public List<Team> getTeams() {
+        return teamService.getAllTeams();
     }
 }

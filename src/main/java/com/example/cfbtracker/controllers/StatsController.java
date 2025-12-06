@@ -1,8 +1,11 @@
 package com.example.cfbtracker.controllers;
 
-import com.example.cfbtracker.models.Stat;
-import com.example.cfbtracker.repositories.StatRepository;
 import org.springframework.web.bind.annotation.*;
+
+import com.example.cfbtracker.models.Stat;
+import com.example.cfbtracker.services.StatService;
+import com.example.cfbtracker.services.GameService;
+import com.example.cfbtracker.services.CFBDService;
 
 import java.util.List;
 
@@ -10,14 +13,20 @@ import java.util.List;
 @RequestMapping("/stats")
 public class StatsController {
 
-    private final StatRepository statRepository;
+    private final StatService statService;
+    private final GameService gameService;
+    private final CFBDService cfbdService;
 
-    public StatsController(StatRepository statRepository) {
-        this.statRepository = statRepository;
+    public StatsController(StatService statService, GameService gameService, CFBDService cfbdService) {
+        this.statService = statService;
+        this.gameService = gameService;
+        this.cfbdService = cfbdService;
     }
 
     @GetMapping
     public List<Stat> getAllStats() {
-        return statRepository.findAll();
+        // Placeholder: refresh games so stats could be derived in the future
+        gameService.ingestGames(cfbdService.fetchGames(null, null, null, null));
+        return statService.getAllStats();
     }
 }
