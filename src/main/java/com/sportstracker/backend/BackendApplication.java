@@ -5,7 +5,16 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication
+/**
+ * Main Spring Boot application.
+ * Scans both our backend package and the imported CFBD API package from Adl's branch.
+ */
+@SpringBootApplication(
+        scanBasePackages = {
+                "com.sportstracker.backend",
+                "com.example.cfbtracker"
+        }
+)
 @EnableAsync
 @EnableScheduling
 public class BackendApplication {
