@@ -2,17 +2,29 @@ import { type User } from '../App';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './figma-ui/card';
 import { Badge } from './figma-ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './figma-ui/tabs';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Users, Calendar, Trophy, Clock } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Users, Calendar, Trophy, Clock } from 'lucide-react';
 import { mockTeams, mockGames, mockPlayers } from '../lib/mockData';
+import { getVisibleTeams, getUserPermissions, shouldApplyDelay, getDelayedTimestamp } from '../lib/userPermissions';
 
 interface DashboardProps {
   user: User;
 }
 
 export default function Dashboard({ user }: DashboardProps) {
-  const isGuest = user.role === 'guest';
-  const displayTeams = isGuest ? mockTeams.slice(0, 25) : mockTeams;
+  const permissions = getUserPermissions(user);
+  const displayTeams = getVisibleTeams(user, mockTeams);
+  
+  // Apply delay for guests - filter games to show only those before the delayed timestamp
+  const delayedTimestamp = shouldApplyDelay(user) ? getDelayedTimestamp(user) : new Date();
+  const filteredGames = mockGames.filter(game => {
+    if (game.status === 'live' && shouldApplyDelay(user)) {
+      // For live games, only show if they started before the delay threshold
+      const gameDate = new Date(game.game_date);
+      return gameDate < delayedTimestamp;
+    }
+    return true;
+  });
 
   // Stats data for charts
   const conferenceData = [
@@ -28,8 +40,8 @@ export default function Dashboard({ user }: DashboardProps) {
     wins: t.wins || 0,
   }));
 
-  const liveGames = mockGames.filter(g => g.status === 'live');
-  const todayGames = mockGames.filter(g => g.game_date.startsWith('2025-11-09'));
+  const liveGames = filteredGames.filter(g => g.status === 'live');
+  const todayGames = filteredGames.filter(g => g.game_date.startsWith('2025-11-09'));
 
   const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#ea580c', '#8b5cf6'];
 
@@ -41,7 +53,9 @@ export default function Dashboard({ user }: DashboardProps) {
           Dashboard
         </h1>
         <p className="text-gray-600">
-          Welcome back, {user.name || user.email}. Here's what's happening in college football today.
+          {user.role === 'guest' 
+            ? "Welcome Guest. Here's what's happening in college football today."
+            : `Welcome back, ${user.name || user.email}. Here's what's happening in college football today.`}
         </p>
       </div>
 
@@ -81,7 +95,7 @@ export default function Dashboard({ user }: DashboardProps) {
           <CardContent>
             <div className="text-2xl">{displayTeams.length}</div>
             <p className="text-xs text-gray-500 mt-1">
-              {isGuest ? 'Top 25 only' : 'All teams'}
+              {permissions.teamsVisible === 'all' ? 'All teams' : `Top ${permissions.teamsVisible} only`}
             </p>
           </CardContent>
         </Card>
@@ -107,9 +121,15 @@ export default function Dashboard({ user }: DashboardProps) {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Live Games</CardTitle>
-                <CardDescription>Real-time scores and updates</CardDescription>
+                <CardDescription>
+                  {shouldApplyDelay(user) 
+                    ? `Delayed updates (${permissions.realtimeDelayMinutes} min delay)` 
+                    : 'Real-time scores and updates'}
+                </CardDescription>
               </div>
-              <Badge className="bg-red-600">LIVE</Badge>
+              <Badge className="bg-red-600">
+                {shouldApplyDelay(user) ? `DELAYED` : 'LIVE'}
+              </Badge>
             </div>
           </CardHeader>
           <CardContent>
@@ -180,12 +200,12 @@ export default function Dashboard({ user }: DashboardProps) {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={(entry) => entry.name}
+                      label={(props: any) => props.name || ''}
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="teams"
                     >
-                      {conferenceData.map((entry, index) => (
+                      {conferenceData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>

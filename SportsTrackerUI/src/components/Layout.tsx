@@ -12,10 +12,36 @@ import {
   DropdownMenuTrigger,
 } from './figma-ui/dropdown-menu';
 import { BarChart3, Home, Users, UserCircle, Calendar, TrendingUp, LogOut } from 'lucide-react';
+import { canAccessProjections, getUserPermissions } from '../lib/userPermissions';
 
 interface LayoutProps {
   user: User;
   onLogout: () => void;
+}
+
+function GuestWarningBanner({ user, onSignIn }: { user: User; onSignIn: () => void }) {
+  const permissions = getUserPermissions(user);
+  return (
+    <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
+      <div className="flex items-start gap-3">
+        <div className="text-orange-600 mt-0.5">⚠️</div>
+        <div className="flex-1">
+          <h3 className="text-orange-900 mb-1">Guest Access Limited</h3>
+          <p className="text-sm text-orange-700">
+            You're viewing Top {permissions.teamsVisible} teams with {permissions.realtimeDelayMinutes}-minute delayed data. 
+            Sign in for full access to all teams, live data, projections, and odds.
+          </p>
+          <Button
+            size="sm"
+            onClick={onSignIn}
+            className="mt-3 bg-orange-600 hover:bg-orange-700"
+          >
+            Sign In Now
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Layout({ user, onLogout }: LayoutProps) {
@@ -54,7 +80,7 @@ export default function Layout({ user, onLogout }: LayoutProps) {
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
-                const isDisabled = item.requiresAuth && user.role === 'guest';
+                const isDisabled = item.requiresAuth && !canAccessProjections(user);
 
                 return (
                   <Link
@@ -121,7 +147,7 @@ export default function Layout({ user, onLogout }: LayoutProps) {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
-              const isDisabled = item.requiresAuth && user.role === 'guest';
+              const isDisabled = item.requiresAuth && !canAccessProjections(user);
 
               return (
                 <Link
@@ -148,24 +174,7 @@ export default function Layout({ user, onLogout }: LayoutProps) {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {user.role === 'guest' && (
-          <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <div className="text-orange-600 mt-0.5">⚠️</div>
-              <div className="flex-1">
-                <h3 className="text-orange-900 mb-1">Guest Access Limited</h3>
-                <p className="text-sm text-orange-700">
-                  You're viewing Top 25 teams with 10-minute delayed data. Sign in for full access to all teams, live data, and projections.
-                </p>
-                <Button
-                  size="sm"
-                  onClick={handleLogout}
-                  className="mt-3 bg-orange-600 hover:bg-orange-700"
-                >
-                  Sign In Now
-                </Button>
-              </div>
-            </div>
-          </div>
+          <GuestWarningBanner user={user} onSignIn={handleLogout} />
         )}
         <Outlet />
       </main>
