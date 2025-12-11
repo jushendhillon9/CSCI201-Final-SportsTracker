@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './figma-ui/table';
 import { Search, Trophy, TrendingUp, TrendingDown } from 'lucide-react';
 import { mockTeams } from '../lib/mockData';
+import { getVisibleTeams, getUserPermissions } from '../lib/userPermissions';
 
 interface TeamsPageProps {
   user: User;
@@ -16,8 +17,8 @@ export default function TeamsPage({ user }: TeamsPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [conferenceFilter, setConferenceFilter] = useState<string>('all');
   
-  const isGuest = user.role === 'guest';
-  const allTeams = isGuest ? mockTeams.slice(0, 25) : mockTeams;
+  const permissions = getUserPermissions(user);
+  const allTeams = getVisibleTeams(user, mockTeams);
 
   const conferences = ['all', ...new Set(mockTeams.map(t => t.conference))];
 
@@ -33,7 +34,7 @@ export default function TeamsPage({ user }: TeamsPageProps) {
       <div>
         <h1 className="text-3xl text-gray-900 mb-2">Teams</h1>
         <p className="text-gray-600">
-          Browse and analyze college football teams {isGuest && '(Top 25 only)'}
+          Browse and analyze college football teams {permissions.teamsVisible !== 'all' && `(Top ${permissions.teamsVisible} only)`}
         </p>
       </div>
 

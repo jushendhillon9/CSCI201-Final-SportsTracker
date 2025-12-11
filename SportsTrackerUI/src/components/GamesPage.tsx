@@ -1,19 +1,31 @@
-import { useState } from 'react';
 import { type User } from '../App';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './figma-ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './figma-ui/card';
 import { Badge } from './figma-ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './figma-ui/tabs';
 import { Calendar, Clock, CheckCircle } from 'lucide-react';
 import { mockGames } from '../lib/mockData';
+import { shouldApplyDelay, getDelayedTimestamp, getUserPermissions } from '../lib/userPermissions';
 
 interface GamesPageProps {
   user: User;
 }
 
 export default function GamesPage({ user }: GamesPageProps) {
-  const liveGames = mockGames.filter(g => g.status === 'live');
-  const scheduledGames = mockGames.filter(g => g.status === 'scheduled');
-  const completedGames = mockGames.filter(g => g.status === 'completed');
+  const permissions = getUserPermissions(user);
+  
+  // Apply delay for guests - filter live games to show only those before the delayed timestamp
+  const delayedTimestamp = shouldApplyDelay(user) ? getDelayedTimestamp(user) : new Date();
+  const filteredGames = mockGames.filter(game => {
+    if (game.status === 'live' && shouldApplyDelay(user)) {
+      const gameDate = new Date(game.game_date);
+      return gameDate < delayedTimestamp;
+    }
+    return true;
+  });
+  
+  const liveGames = filteredGames.filter(g => g.status === 'live');
+  const scheduledGames = filteredGames.filter(g => g.status === 'scheduled');
+  const completedGames = filteredGames.filter(g => g.status === 'completed');
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -47,7 +59,9 @@ export default function GamesPage({ user }: GamesPageProps) {
               <span className="text-sm text-gray-600">{formatDate(game.game_date)}</span>
             </div>
             {isLive && (
-              <Badge className="bg-red-600">LIVE</Badge>
+              <Badge className={shouldApplyDelay(user) ? "bg-orange-600" : "bg-red-600"}>
+                {shouldApplyDelay(user) ? `DELAYED (${permissions.realtimeDelayMinutes}m)` : 'LIVE'}
+              </Badge>
             )}
             {isCompleted && (
               <Badge variant="outline" className="text-green-600 border-green-300">

@@ -8,12 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './figma-ui/tabs';
 import { Search, User as UserIcon } from 'lucide-react';
 import { mockPlayers, mockStats } from '../lib/mockData';
+import { getUserPermissions } from '../lib/userPermissions';
 
 interface PlayersPageProps {
   user: User;
 }
 
 export default function PlayersPage({ user }: PlayersPageProps) {
+  const permissions = getUserPermissions(user);
   const [searchQuery, setSearchQuery] = useState('');
   const [positionFilter, setPositionFilter] = useState<string>('all');
 
@@ -148,6 +150,23 @@ export default function PlayersPage({ user }: PlayersPageProps) {
                         <span className="text-gray-600">Games Played</span>
                         <span className="text-gray-900">{stats?.gamesPlayed || 0}</span>
                       </div>
+                      {permissions.statsDepth === 'full' && (
+                        <>
+                          <div className="pt-2 border-t mt-2">
+                            <div className="text-xs text-gray-500 mb-1">Advanced Metrics</div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-600">Yards/Attempt</span>
+                              <span className="text-gray-900">
+                                {player.position === 'QB' && stats?.passingYards && stats?.gamesPlayed
+                                  ? (stats.passingYards / (stats.gamesPlayed * 30)).toFixed(1)
+                                  : player.position === 'RB' && stats?.rushingYards && stats?.gamesPlayed
+                                  ? (stats.rushingYards / (stats.gamesPlayed * 15)).toFixed(1)
+                                  : '-'}
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
