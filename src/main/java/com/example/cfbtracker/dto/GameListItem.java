@@ -7,6 +7,8 @@ public class GameListItem {
     private String date;
     private String homeTeam;
     private String awayTeam;
+    private String homeLogo;
+    private String awayLogo;
     private Integer homeScore;
     private Integer awayScore;
     private String status;
@@ -26,6 +28,10 @@ public class GameListItem {
     public void setHomeTeam(String homeTeam) { this.homeTeam = homeTeam; }
     public String getAwayTeam() { return awayTeam; }
     public void setAwayTeam(String awayTeam) { this.awayTeam = awayTeam; }
+    public String getHomeLogo() { return homeLogo; }
+    public void setHomeLogo(String homeLogo) { this.homeLogo = homeLogo; }
+    public String getAwayLogo() { return awayLogo; }
+    public void setAwayLogo(String awayLogo) { this.awayLogo = awayLogo; }
     public Integer getHomeScore() { return homeScore; }
     public void setHomeScore(Integer homeScore) { this.homeScore = homeScore; }
     public Integer getAwayScore() { return awayScore; }

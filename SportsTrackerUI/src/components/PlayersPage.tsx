@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type User } from '../App';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './figma-ui/card';
 import { Input } from './figma-ui/input';
@@ -7,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './figma-ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './figma-ui/tabs';
 import { Search, User as UserIcon } from 'lucide-react';
-import { mockPlayers, mockStats } from '../lib/mockData';
 import { getUserPermissions } from '../lib/userPermissions';
+import { api } from '../lib/api';
 
 interface PlayersPageProps {
   user: User;
@@ -18,33 +18,37 @@ export default function PlayersPage({ user }: PlayersPageProps) {
   const permissions = getUserPermissions(user);
   const [searchQuery, setSearchQuery] = useState('');
   const [positionFilter, setPositionFilter] = useState<string>('all');
+  const [players, setPlayers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const MAX_PLAYERS = 100;
 
-  const positions = ['all', ...new Set(mockPlayers.map(p => p.position))];
+  const positions = ['all', ...new Set(players.map(p => p.position).filter(Boolean))];
 
-  const filteredPlayers = mockPlayers.filter(player => {
+  const filteredPlayers = players.filter(player => {
     const matchesSearch = player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          player.teamName?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesPosition = positionFilter === 'all' || player.position === positionFilter;
     return matchesSearch && matchesPosition;
   });
 
-  // Aggregate stats for players
-  const playerStats = mockPlayers.map(player => {
-    const stats = mockStats.filter(s => s.playerid === player.playerid);
-    const passingYards = stats.filter(s => s.stat_type === 'passing_yards').reduce((sum, s) => sum + s.value, 0);
-    const rushingYards = stats.filter(s => s.stat_type === 'rushing_yards').reduce((sum, s) => sum + s.value, 0);
-    const receivingYards = stats.filter(s => s.stat_type === 'receiving_yards').reduce((sum, s) => sum + s.value, 0);
-    const tds = stats.filter(s => s.stat_type.includes('_tds')).reduce((sum, s) => sum + s.value, 0);
-    
-    return {
-      ...player,
-      passingYards,
-      rushingYards,
-      receivingYards,
-      totalTDs: tds,
-      gamesPlayed: new Set(stats.map(s => s.gameid)).size,
-    };
-  });
+  // Aggregate stats if provided in payload
+  const playerStats = players.map(player => ({
+    ...player,
+    passingYards: player.passingYards ?? player.passing_yards ?? 0,
+    rushingYards: player.rushingYards ?? player.rushing_yards ?? 0,
+    receivingYards: player.receivingYards ?? player.receiving_yards ?? 0,
+    totalTDs: player.totalTDs ?? player.total_tds ?? 0,
+    gamesPlayed: player.gamesPlayed ?? player.games_played ?? 0,
+  }));
+
+  useEffect(() => {
+    setLoading(true);
+    api.getPlayers()
+      .then(setPlayers)
+      .catch(err => setError(err.message || 'Failed to load players'))
+      .finally(() => setLoading(false));
+  }, []);
 
   const positionColors: Record<string, string> = {
     QB: 'bg-blue-100 text-blue-700 border-blue-300',
@@ -101,7 +105,9 @@ export default function PlayersPage({ user }: PlayersPageProps) {
 
         <TabsContent value="cards" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredPlayers.map(player => {
+            {loading && <div className="text-gray-500">Loading players...</div>}
+            {error && <div className="text-red-600">{error}</div>}
+            {!loading && !error && filteredPlayers.slice(0, MAX_PLAYERS).map(player => {
               const stats = playerStats.find(p => p.playerid === player.playerid);
               return (
                 <Card key={player.playerid} className="hover:shadow-lg transition-shadow">
@@ -173,6 +179,9 @@ export default function PlayersPage({ user }: PlayersPageProps) {
               );
             })}
           </div>
+          {!loading && !error && filteredPlayers.length > MAX_PLAYERS && (
+            <div className="text-xs text-gray-500">Showing first {MAX_PLAYERS} players. Refine your search to narrow results.</div>
+          )}
         </TabsContent>
 
         <TabsContent value="table" className="space-y-4">

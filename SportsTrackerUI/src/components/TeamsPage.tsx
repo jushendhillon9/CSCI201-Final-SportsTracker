@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type User } from '../App';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './figma-ui/card';
 import { Input } from './figma-ui/input';
@@ -6,8 +6,8 @@ import { Badge } from './figma-ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './figma-ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './figma-ui/table';
 import { Search, Trophy, TrendingUp, TrendingDown } from 'lucide-react';
-import { mockTeams } from '../lib/mockData';
 import { getVisibleTeams, getUserPermissions } from '../lib/userPermissions';
+import { api } from '../lib/api';
 
 interface TeamsPageProps {
   user: User;
@@ -16,17 +16,32 @@ interface TeamsPageProps {
 export default function TeamsPage({ user }: TeamsPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [conferenceFilter, setConferenceFilter] = useState<string>('all');
+  const [teams, setTeams] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fetched, setFetched] = useState(false);
   
   const permissions = getUserPermissions(user);
-  const allTeams = getVisibleTeams(user, mockTeams);
+  const allTeams = getVisibleTeams(user, teams);
 
-  const conferences = ['all', ...new Set(mockTeams.map(t => t.conference))];
+  const conferences = ['all', ...new Set(teams.map(t => t.conference).filter(Boolean))];
 
   const filteredTeams = allTeams.filter(team => {
     const matchesSearch = team.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesConference = conferenceFilter === 'all' || team.conference === conferenceFilter;
     return matchesSearch && matchesConference;
   });
+
+  useEffect(() => {
+    setLoading(true);
+    api.getTeams({ conference: conferenceFilter === 'all' ? undefined : conferenceFilter, search: searchQuery })
+      .then(setTeams)
+      .catch(err => setError(err.message || 'Failed to load teams'))
+      .finally(() => {
+        setFetched(true);
+        setLoading(false);
+      });
+  }, [conferenceFilter, searchQuery]);
 
   return (
     <div className="space-y-6">
@@ -69,7 +84,9 @@ export default function TeamsPage({ user }: TeamsPageProps) {
 
       {/* Teams Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTeams.map(team => (
+        {loading && <div className="text-gray-500">Loading teams...</div>}
+        {error && <div className="text-red-600">{error}</div>}
+        {!loading && !error && fetched && filteredTeams.map(team => (
           <Card key={team.teamid} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-start justify-between">

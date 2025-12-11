@@ -8,7 +8,11 @@ public class CFBDRecordDTO {
     private String team;
     private Integer teamId;
     private String conference;
+    // CFBD returns "total" and also "overall" in some responses. Map both.
+    @JsonProperty("total")
     private Totals total;
+    @JsonProperty("overall")
+    private Totals overall;
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Totals {
@@ -30,4 +34,6 @@ public class CFBDRecordDTO {
     public void setConference(String conference) { this.conference = conference; }
     public Totals getTotal() { return total; }
     public void setTotal(Totals total) { this.total = total; }
+    public Totals getOverall() { return overall; }
+    public void setOverall(Totals overall) { this.overall = overall; }
 }

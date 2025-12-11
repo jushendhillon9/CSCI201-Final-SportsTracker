@@ -126,7 +126,24 @@ public class CFBDService {
     }
 
     public CFBDRecordDTO[] fetchRecords(Integer season) {
-        String url = baseUrl + "/records" + (season != null ? "?year=" + season : "");
+        return fetchRecords(season, null);
+    }
+
+    public CFBDRecordDTO[] fetchRecords(Integer season, String team) {
+        return fetchRecords(season, team, true);
+    }
+
+    public CFBDRecordDTO[] fetchRecords(Integer season, String team, boolean includeClassification) {
+        StringJoiner params = new StringJoiner("&", "?", "");
+        if (season != null) params.add("year=" + season);
+        if (includeClassification) {
+            params.add("classification=both"); // include FBS and FCS records
+        }
+        if (team != null && !team.isBlank()) {
+            String encoded = java.net.URLEncoder.encode(team, java.nio.charset.StandardCharsets.UTF_8);
+            params.add("team=" + encoded);
+        }
+        String url = baseUrl + "/records" + (params.length() > 1 ? params.toString() : "");
 
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));

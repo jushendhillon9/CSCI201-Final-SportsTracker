@@ -8,24 +8,18 @@ public class CFBDGameDTO {
     private Integer id;
     private Integer season;
     private Integer week;
-    @JsonProperty("start_date")
     private String startDate;
-    @JsonProperty("home_id")
     private Integer homeId;
-    @JsonProperty("away_id")
     private Integer awayId;
-    @JsonProperty("home_team")
     private String homeTeam;
-    @JsonProperty("away_team")
     private String awayTeam;
-    @JsonProperty("home_points")
     private Integer homePoints;
-    @JsonProperty("away_points")
     private Integer awayPoints;
     private String venue;
     private String status;
     private Integer period;
     private String clock;
+    private Boolean completed;
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -55,4 +49,6 @@ public class CFBDGameDTO {
     public void setPeriod(Integer period) { this.period = period; }
     public String getClock() { return clock; }
     public void setClock(String clock) { this.clock = clock; }
+    public Boolean getCompleted() { return completed; }
+    public void setCompleted(Boolean completed) { this.completed = completed; }
 }

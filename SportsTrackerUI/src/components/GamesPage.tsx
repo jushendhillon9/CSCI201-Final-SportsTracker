@@ -1,34 +1,66 @@
+import { useEffect, useState } from 'react';
 import { type User } from '../App';
 import { Card, CardContent, CardHeader, CardTitle } from './figma-ui/card';
 import { Badge } from './figma-ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './figma-ui/tabs';
 import { Calendar, Clock, CheckCircle } from 'lucide-react';
-import { mockGames } from '../lib/mockData';
 import { shouldApplyDelay, getDelayedTimestamp, getUserPermissions } from '../lib/userPermissions';
+import { api } from '../lib/api';
 
 interface GamesPageProps {
   user: User;
 }
 
+type GameDto = {
+  gameId?: number;
+  gameid?: number; // fallback for older responses
+  season?: number;
+  week?: number;
+  date?: string;
+  homeTeam?: string;
+  awayTeam?: string;
+  homeLogo?: string;
+  awayLogo?: string;
+  homeScore?: number;
+  awayScore?: number;
+  status?: string;
+  venue?: string;
+  quarter?: string;
+  timeRemaining?: string;
+};
+
 export default function GamesPage({ user }: GamesPageProps) {
   const permissions = getUserPermissions(user);
+  const [games, setGames] = useState<GameDto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Apply delay for guests - filter live games to show only those before the delayed timestamp
   const delayedTimestamp = shouldApplyDelay(user) ? getDelayedTimestamp(user) : new Date();
-  const filteredGames = mockGames.filter(game => {
-    if (game.status === 'live' && shouldApplyDelay(user)) {
-      const gameDate = new Date(game.game_date);
+  const filteredGames = games.filter(game => {
+    if ((game.status === 'live' || game.status === 'in_progress') && shouldApplyDelay(user)) {
+      const gameDate = new Date((game.date || '').replace(' ', 'T'));
       return gameDate < delayedTimestamp;
     }
     return true;
   });
   
-  const liveGames = filteredGames.filter(g => g.status === 'live');
+  const liveGames = filteredGames.filter(g => g.status === 'live' || g.status === 'in_progress');
   const scheduledGames = filteredGames.filter(g => g.status === 'scheduled');
-  const completedGames = filteredGames.filter(g => g.status === 'completed');
+  const completedGames = filteredGames.filter(g => g.status === 'completed' || g.status === 'final');
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+  useEffect(() => {
+    setLoading(true);
+    api.getGames()
+      .then(setGames)
+      .catch(err => setError(err.message || 'Failed to load games'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return 'TBD';
+    const date = new Date(dateString.replace(' ', 'T'));
+    if (isNaN(date.getTime())) return 'TBD';
     return date.toLocaleDateString('en-US', { 
       weekday: 'short',
       month: 'short', 
@@ -37,8 +69,10 @@ export default function GamesPage({ user }: GamesPageProps) {
     });
   };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
+  const formatTime = (dateString: string | undefined) => {
+    if (!dateString) return 'TBD';
+    const date = new Date(dateString.replace(' ', 'T'));
+    if (isNaN(date.getTime())) return 'TBD';
     return date.toLocaleTimeString('en-US', { 
       hour: 'numeric',
       minute: '2-digit',
@@ -46,9 +80,9 @@ export default function GamesPage({ user }: GamesPageProps) {
     });
   };
 
-  const GameCard = ({ game }: { game: typeof mockGames[0] }) => {
-    const isLive = game.status === 'live';
-    const isCompleted = game.status === 'completed';
+  const GameCard = ({ game }: { game: GameDto }) => {
+    const isLive = game.status === 'live' || game.status === 'in_progress';
+    const isCompleted = game.status === 'completed' || game.status === 'final';
 
     return (
       <Card className={`${isLive ? 'border-red-300 bg-red-50' : ''}`}>
@@ -56,7 +90,7 @@ export default function GamesPage({ user }: GamesPageProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-gray-500" />
-              <span className="text-sm text-gray-600">{formatDate(game.game_date)}</span>
+              <span className="text-sm text-gray-600">{formatDate(game.date)}</span>
             </div>
             {isLive && (
               <Badge className={shouldApplyDelay(user) ? "bg-orange-600" : "bg-red-600"}>
@@ -72,7 +106,7 @@ export default function GamesPage({ user }: GamesPageProps) {
             {game.status === 'scheduled' && (
               <Badge variant="outline">
                 <Clock className="h-3 w-3 mr-1" />
-                {formatTime(game.game_date)} ET
+                {formatTime(game.date)} ET
               </Badge>
             )}
           </div>
@@ -82,16 +116,25 @@ export default function GamesPage({ user }: GamesPageProps) {
             {/* Away Team */}
             <div className="flex items-center justify-between p-3 bg-white rounded-lg">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                  🏈
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
+                  {game.awayLogo ? (
+                    <img
+                      src={game.awayLogo}
+                      alt={`${game.awayTeam ?? 'Away team'} logo`}
+                      className="w-full h-full object-contain"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <span className="text-lg">FB</span>
+                  )}
                 </div>
                 <div>
-                  <div className="text-gray-900">{game.away_team_name}</div>
+                  <div className="text-gray-900">{game.awayTeam ?? 'Away'}</div>
                   <div className="text-xs text-gray-500">Away</div>
                 </div>
               </div>
               {(isLive || isCompleted) && (
-                <div className="text-3xl text-gray-900">{game.away_score}</div>
+                <div className="text-3xl text-gray-900">{game.awayScore ?? 0}</div>
               )}
             </div>
 
@@ -105,16 +148,25 @@ export default function GamesPage({ user }: GamesPageProps) {
             {/* Home Team */}
             <div className="flex items-center justify-between p-3 bg-white rounded-lg">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                  🏈
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
+                  {game.homeLogo ? (
+                    <img
+                      src={game.homeLogo}
+                      alt={`${game.homeTeam ?? 'Home team'} logo`}
+                      className="w-full h-full object-contain"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <span className="text-lg">FB</span>
+                  )}
                 </div>
                 <div>
-                  <div className="text-gray-900">{game.home_team_name}</div>
+                  <div className="text-gray-900">{game.homeTeam ?? 'Home'}</div>
                   <div className="text-xs text-gray-500">Home</div>
                 </div>
               </div>
               {(isLive || isCompleted) && (
-                <div className="text-3xl text-gray-900">{game.home_score}</div>
+                <div className="text-3xl text-gray-900">{game.homeScore ?? 0}</div>
               )}
             </div>
 
@@ -122,7 +174,7 @@ export default function GamesPage({ user }: GamesPageProps) {
             {isLive && (
               <div className="pt-3 border-t text-center">
                 <Badge variant="outline" className="text-red-600 border-red-300">
-                  Q3 • 8:45 remaining
+                  {`${game.quarter ?? ''} ${game.timeRemaining ?? ''}`.trim() || 'In progress'}
                 </Badge>
               </div>
             )}
@@ -196,16 +248,18 @@ export default function GamesPage({ user }: GamesPageProps) {
         </TabsList>
 
         <TabsContent value="live" className="space-y-4">
-          {liveGames.length > 0 ? (
+          {loading && <div className="text-gray-500">Loading games...</div>}
+          {error && <div className="text-red-600">{error}</div>}
+          {!loading && !error && liveGames.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {liveGames.map(game => (
-                <GameCard key={game.gameid} game={game} />
+                <GameCard key={game.gameId ?? game.gameid} game={game} />
               ))}
             </div>
           ) : (
             <Card>
               <CardContent className="py-12 text-center">
-                <div className="text-4xl mb-4">📺</div>
+                <div className="text-4xl mb-4">FB</div>
                 <p className="text-gray-500">No live games at the moment</p>
                 <p className="text-sm text-gray-400 mt-2">Check back during game days</p>
               </CardContent>
@@ -214,10 +268,12 @@ export default function GamesPage({ user }: GamesPageProps) {
         </TabsContent>
 
         <TabsContent value="scheduled" className="space-y-4">
-          {scheduledGames.length > 0 ? (
+          {loading && <div className="text-gray-500">Loading games...</div>}
+          {error && <div className="text-red-600">{error}</div>}
+          {!loading && !error && scheduledGames.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {scheduledGames.map(game => (
-                <GameCard key={game.gameid} game={game} />
+                <GameCard key={game.gameId ?? game.gameid} game={game} />
               ))}
             </div>
           ) : (
@@ -230,10 +286,12 @@ export default function GamesPage({ user }: GamesPageProps) {
         </TabsContent>
 
         <TabsContent value="completed" className="space-y-4">
-          {completedGames.length > 0 ? (
+          {loading && <div className="text-gray-500">Loading games...</div>}
+          {error && <div className="text-red-600">{error}</div>}
+          {!loading && !error && completedGames.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {completedGames.map(game => (
-                <GameCard key={game.gameid} game={game} />
+                <GameCard key={game.gameId ?? game.gameid} game={game} />
               ))}
             </div>
           ) : (

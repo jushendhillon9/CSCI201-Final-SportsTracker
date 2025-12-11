@@ -7,9 +7,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class CFBDRosterPlayerDTO {
     @JsonProperty("id")
     private Integer id;
-    @JsonProperty("first_name")
+    // CFBD roster uses camelCase field names (e.g., firstName, lastName).
+    // Map them correctly so names are not lost on ingest.
+    @JsonProperty("firstName")
     private String firstName;
-    @JsonProperty("last_name")
+    @JsonProperty("lastName")
     private String lastName;
     private String position;
     private String team;

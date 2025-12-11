@@ -6,8 +6,12 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import com.example.cfbtracker.models.Player;
 import com.example.cfbtracker.models.Team;
+import com.example.cfbtracker.models.Game;
+import com.example.cfbtracker.models.Stat;
 import com.example.cfbtracker.repositories.PlayerRepository;
 import com.example.cfbtracker.repositories.TeamRepository;
+import com.example.cfbtracker.repositories.GameRepository;
+import com.example.cfbtracker.repositories.StatRepository;
 import com.example.cfbtracker.dto.PlayerListItem;
 import com.example.cfbtracker.dto.CFBDPlayerDTO;
 import com.example.cfbtracker.dto.CFBDPlayerStatDTO;
@@ -24,11 +28,15 @@ public class PlayerService {
 
     private final PlayerRepository playerRepository;
     private final TeamRepository teamRepository;
+    private final GameRepository gameRepository;
+    private final StatRepository statRepository;
     private final CFBDService cfbdService;
 
-    public PlayerService(PlayerRepository playerRepository, TeamRepository teamRepository, CFBDService cfbdService) {
+    public PlayerService(PlayerRepository playerRepository, TeamRepository teamRepository, GameRepository gameRepository, StatRepository statRepository, CFBDService cfbdService) {
         this.playerRepository = playerRepository;
         this.teamRepository = teamRepository;
+        this.gameRepository = gameRepository;
+        this.statRepository = statRepository;
         this.cfbdService = cfbdService;
     }
 
@@ -44,28 +52,28 @@ public class PlayerService {
             teamName = teamRepository.findById(teamId).map(Team::getName).orElse(null);
         }
 
-        // Avoid long fetches on every request; only ingest if forced, empty, or a search is provided
+        // Avoid long fetches on every request; only ingest if forced or empty
         long existingCount = playerRepository.count();
         int ingested = 0;
-        if (forceRefresh || existingCount == 0 || (search != null && !search.isBlank())) {
+        if (forceRefresh || existingCount == 0) {
             ingested = ingestRostersForAllTeams(seasonCurrent);
-        }
 
-        // Backup: use player search endpoints if rosters are empty
-        CFBDPlayerDTO[] playersForTeam = cfbdService.fetchPlayers(seasonCurrent, teamName, search);
-        if (playersForTeam != null && playersForTeam.length > 0) {
-            ingested += ingestPlayers(playersForTeam);
-        }
-        CFBDPlayerDTO[] allPlayers = cfbdService.fetchPlayers(seasonCurrent, null, search);
-        if (allPlayers != null && allPlayers.length > 0) {
-            ingested += ingestPlayers(allPlayers);
-        }
-        if (ingested == 0 && existingCount == 0) {
-            log.warn("CFBD players ingest returned zero rows for season {}", seasonCurrent);
-        }
+            // Backup: use player search endpoints if rosters are empty
+            CFBDPlayerDTO[] playersForTeam = cfbdService.fetchPlayers(seasonCurrent, teamName, search);
+            if (playersForTeam != null && playersForTeam.length > 0) {
+                ingested += ingestPlayers(playersForTeam);
+            }
+            CFBDPlayerDTO[] allPlayers = cfbdService.fetchPlayers(seasonCurrent, null, search);
+            if (allPlayers != null && allPlayers.length > 0) {
+                ingested += ingestPlayers(allPlayers);
+            }
+            if (ingested == 0 && existingCount == 0) {
+                log.warn("CFBD players ingest returned zero rows for season {}", seasonCurrent);
+            }
 
-        ingestPlayerStats(cfbdService.fetchPlayerStats(seasonCurrent, teamName, null));
-        ensureNamesPresent();
+            ingestPlayerStats(cfbdService.fetchPlayerStats(seasonCurrent, teamName, null));
+            ensureNamesPresent();
+        }
 
         List<Player> players;
         if (teamId != null && position != null && !position.isBlank()) {
@@ -200,6 +208,21 @@ public class PlayerService {
                 player.setReceiving_yards(val);
             }
             playerRepository.save(player);
+
+            // Persist raw stat row
+            Stat stat = new Stat();
+            stat.setSeason(s.getSeason());
+            String typeLabel = cat;
+            if (s.getStatType() != null && !s.getStatType().isBlank()) {
+                typeLabel = (cat + "_" + s.getStatType()).toLowerCase();
+            }
+            stat.setStat_type(typeLabel);
+            stat.setValue(s.getStat());
+            stat.setPlayer(player);
+            if (s.getGameId() != null) {
+                gameRepository.findById(s.getGameId()).ifPresent(stat::setGame);
+            }
+            statRepository.save(stat);
             count++;
         }
         return count;
@@ -219,5 +242,17 @@ public class PlayerService {
         dto.setRushingYards(player.getRushing_yards() == null ? 0 : player.getRushing_yards());
         dto.setReceivingYards(player.getReceiving_yards() == null ? 0 : player.getReceiving_yards());
         return dto;
+    }
+
+    /**
+     * Convenience helper to fetch and ingest player stats for an optional team/player/season.
+     */
+    public int fetchAndIngestPlayerStats(Integer season, Integer teamId, Integer playerId) {
+        String teamName = null;
+        if (teamId != null) {
+            teamName = teamRepository.findById(teamId).map(Team::getName).orElse(null);
+        }
+        CFBDPlayerStatDTO[] stats = cfbdService.fetchPlayerStats(season, teamName, playerId);
+        return ingestPlayerStats(stats);
     }
 }

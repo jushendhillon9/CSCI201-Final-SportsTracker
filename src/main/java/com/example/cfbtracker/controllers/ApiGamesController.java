@@ -24,8 +24,9 @@ public class ApiGamesController {
             @RequestParam(value = "season", required = false) Integer season,
             @RequestParam(value = "week", required = false) Integer week,
             @RequestParam(value = "teamId", required = false) Integer teamId,
-            @RequestParam(value = "status", required = false) String status
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "force", required = false, defaultValue = "false") boolean force
     ) {
-        return gameService.getGames(season, week, teamId, status);
+        return gameService.getGames(season, week, teamId, status, force);
     }
 }

@@ -9,7 +9,8 @@ import com.example.cfbtracker.services.CFBDService;
 
 import java.util.List;
 
-@RestController
+// Use a unique bean name to avoid clashing with the backend StatsController.
+@RestController("cfbStatsController")
 @RequestMapping("/stats")
 public class StatsController {
 

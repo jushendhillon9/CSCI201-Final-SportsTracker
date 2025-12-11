@@ -10,6 +10,9 @@ import com.example.cfbtracker.dto.GameListItem;
 import com.example.cfbtracker.dto.CFBDGameDTO;
 import java.util.stream.Collectors;
 import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 
 import com.example.cfbtracker.services.CFBDService;
 
@@ -30,17 +33,20 @@ public class GameService {
         return gameRepository.findAll();
     }
 
-    public List<GameListItem> getGames(Integer season, Integer week, Integer teamId, String status) {
-        // simple refresh before serve; replace with last-updated check in production
-        String teamName = null;
-        if (teamId != null) {
-            teamName = teamRepository.findById(teamId).map(Team::getName).orElse(null);
+    public List<GameListItem> getGames(Integer season, Integer week, Integer teamId, String status, boolean forceRefresh) {
+        // If DB is empty or force=true, refresh the whole season and then filter from DB
+        boolean shouldRefresh = forceRefresh || gameRepository.count() == 0;
+        if (shouldRefresh) {
+            Integer effectiveSeason = season != null ? season : java.time.Year.now().getValue();
+            CFBDGameDTO[] fetched = cfbdService.fetchGames(effectiveSeason, null, null, null);
+            if (fetched != null && fetched.length > 0) {
+                ingestGames(fetched);
+            }
         }
-        ingestGames(cfbdService.fetchGames(season, week, status, teamName));
-
         List<Game> games = gameRepository.searchGames(status, season, week, teamId);
         return games.stream().map(this::toDto).collect(Collectors.toList());
     }
+
 
     public Game saveGame(Game game) {
         return gameRepository.save(game);
@@ -85,7 +91,11 @@ public class GameService {
             game.setHome_score(dto.getHomePoints());
             game.setAway_score(dto.getAwayPoints());
             game.setVenue(dto.getVenue());
-            game.setStatus(dto.getStatus());
+            String status = dto.getStatus();
+            if (status == null) {
+                status = Boolean.TRUE.equals(dto.getCompleted()) ? "final" : "scheduled";
+            }
+            game.setStatus(status);
             game.setQuarter(dto.getPeriod() != null ? "Q" + dto.getPeriod() : null);
             game.setTime_remaining(dto.getClock());
 
@@ -100,12 +110,18 @@ public class GameService {
         dto.setGameId(game.getGameid());
         dto.setSeason(game.getSeason());
         dto.setWeek(game.getWeek());
-        dto.setDate(game.getGame_date() != null ? game.getGame_date().toString() : null);
+        dto.setDate(game.getGame_date() != null ? game.getGame_date().toInstant().toString() : null);
         dto.setHomeTeam(game.getHomeTeam() != null ? game.getHomeTeam().getName() : null);
         dto.setAwayTeam(game.getAwayTeam() != null ? game.getAwayTeam().getName() : null);
+        dto.setHomeLogo(game.getHomeTeam() != null ? game.getHomeTeam().getLogo_url() : null);
+        dto.setAwayLogo(game.getAwayTeam() != null ? game.getAwayTeam().getLogo_url() : null);
         dto.setHomeScore(game.getHome_score());
         dto.setAwayScore(game.getAway_score());
-        dto.setStatus(game.getStatus());
+        String status = game.getStatus();
+        if (status != null && status.equalsIgnoreCase("final")) {
+            status = "completed";
+        }
+        dto.setStatus(status);
         dto.setVenue(game.getVenue());
         dto.setQuarter(game.getQuarter());
         dto.setTimeRemaining(game.getTime_remaining());

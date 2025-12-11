@@ -22,8 +22,9 @@ public class ApiTeamsController {
     @GetMapping
     public List<TeamListItem> getTeams(
             @RequestParam(value = "conference", required = false) String conference,
-            @RequestParam(value = "search", required = false) String search
+            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "force", required = false, defaultValue = "false") boolean force
     ) {
-        return teamService.getTeams(conference, search);
+        return teamService.getTeams(conference, search, force);
     }
 }

@@ -65,10 +65,8 @@ export function getVisibleTeams(user: User | null, allTeams: any[]): any[] {
   if (permissions.teamsVisible === 'all') {
     return allTeams;
   }
-  // Return top N teams (sorted by ranking)
+  // Return top N teams (sorted by ranking; include unranked at the end)
   return allTeams
-    .filter(t => t.ranking)
-    .sort((a, b) => (a.ranking || 999) - (b.ranking || 999))
+    .sort((a, b) => (a.ranking || 9999) - (b.ranking || 9999))
     .slice(0, permissions.teamsVisible as number);
 }
-

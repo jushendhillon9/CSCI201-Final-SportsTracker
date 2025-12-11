@@ -35,11 +35,6 @@ public class DashboardService {
     }
 
     public DashboardResponse getDashboard() {
-        // simple pull before serving; replace with last-updated check for production
-        teamService.ingestTeams(cfbdService.fetchTeams());
-        teamService.ingestRecords(null);
-        gameService.ingestGames(cfbdService.fetchGames(null, null, null, null));
-
         DashboardResponse resp = new DashboardResponse();
         resp.setTeamsByConference(buildTeamsByConference());
         resp.setUpcomingGamesToday(buildUpcomingGamesToday());
@@ -53,16 +48,35 @@ public class DashboardService {
                 .collect(Collectors.groupingBy(t -> t.getConference() == null ? "Unknown" : t.getConference(), Collectors.counting()));
         return grouped.entrySet().stream()
                 .map(e -> new TeamsByConferenceItem(e.getKey(), e.getValue()))
+                .filter(item -> !"Unknown".equalsIgnoreCase(item.getConference())) // hide unknown bucket
                 .sorted(Comparator.comparing(TeamsByConferenceItem::getConference))
                 .collect(Collectors.toList());
     }
 
     private List<DashboardGameItem> buildUpcomingGamesToday() {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate horizon = today.plusDays(7); // next week
+        List<DashboardGameItem> upcoming = gameRepository.findAll().stream()
+                .filter(g -> g.getGame_date() != null)
+                .filter(g -> "scheduled".equalsIgnoreCase(g.getStatus()))
+                .filter(g -> {
+                    LocalDate d = g.getGame_date().toLocalDate();
+                    return !d.isBefore(today) && !d.isAfter(horizon);
+                })
+                .map(this::toDashboardGame)
+                .sorted(Comparator.comparing(DashboardGameItem::getDate))
+                .limit(3)
+                .collect(Collectors.toList());
+        if (!upcoming.isEmpty()) {
+            return upcoming;
+        }
+        // fallback: next 3 scheduled by date regardless of window
         return gameRepository.findAll().stream()
-                .filter(g -> g.getGame_date() != null && g.getGame_date().toLocalDate().equals(today))
+                .filter(g -> g.getGame_date() != null)
                 .filter(g -> "scheduled".equalsIgnoreCase(g.getStatus()))
                 .map(this::toDashboardGame)
+                .sorted(Comparator.comparing(DashboardGameItem::getDate))
+                .limit(3)
                 .collect(Collectors.toList());
     }
 

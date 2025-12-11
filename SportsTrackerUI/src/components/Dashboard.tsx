@@ -1,11 +1,12 @@
+import { useEffect, useState } from 'react';
 import { type User } from '../App';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './figma-ui/card';
 import { Badge } from './figma-ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './figma-ui/tabs';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Users, Calendar, Trophy, Clock } from 'lucide-react';
-import { mockTeams, mockGames, mockPlayers } from '../lib/mockData';
-import { getVisibleTeams, getUserPermissions, shouldApplyDelay, getDelayedTimestamp } from '../lib/userPermissions';
+import { getUserPermissions } from '../lib/userPermissions';
+import { api } from '../lib/api';
 
 interface DashboardProps {
   user: User;
@@ -13,35 +14,22 @@ interface DashboardProps {
 
 export default function Dashboard({ user }: DashboardProps) {
   const permissions = getUserPermissions(user);
-  const displayTeams = getVisibleTeams(user, mockTeams);
-  
-  // Apply delay for guests - filter games to show only those before the delayed timestamp
-  const delayedTimestamp = shouldApplyDelay(user) ? getDelayedTimestamp(user) : new Date();
-  const filteredGames = mockGames.filter(game => {
-    if (game.status === 'live' && shouldApplyDelay(user)) {
-      // For live games, only show if they started before the delay threshold
-      const gameDate = new Date(game.game_date);
-      return gameDate < delayedTimestamp;
-    }
-    return true;
-  });
+  const [data, setData] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Stats data for charts
-  const conferenceData = [
-    { name: 'SEC', teams: displayTeams.filter(t => t.conference === 'SEC').length },
-    { name: 'Big Ten', teams: displayTeams.filter(t => t.conference === 'Big Ten').length },
-    { name: 'Pac-12', teams: displayTeams.filter(t => t.conference === 'Pac-12').length },
-    { name: 'ACC', teams: displayTeams.filter(t => t.conference === 'ACC').length },
-    { name: 'Big 12', teams: displayTeams.filter(t => t.conference === 'Big 12').length },
-  ];
+  useEffect(() => {
+    setLoading(true);
+    api.getDashboard()
+      .then(setData)
+      .catch(err => setError(err.message || 'Failed to load dashboard'))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const topTeamsData = displayTeams.slice(0, 10).map(t => ({
-    name: t.name,
-    wins: t.wins || 0,
-  }));
-
-  const liveGames = filteredGames.filter(g => g.status === 'live');
-  const todayGames = filteredGames.filter(g => g.game_date.startsWith('2025-11-09'));
+  const conferenceData = data?.teamsByConference?.map((c: any) => ({ name: c.conference, teams: c.teamCount })) ?? [];
+  const topTeamsData = data?.topTeamsByWins?.map((t: any) => ({ name: t.teamName, wins: t.wins })) ?? [];
+  const liveGames = data?.liveGames ?? [];
+  const todayGames = data?.upcomingGamesToday ?? [];
 
   const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#ea580c', '#8b5cf6'];
 
@@ -67,7 +55,7 @@ export default function Dashboard({ user }: DashboardProps) {
             <Clock className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">{liveGames.length}</div>
+            <div className="text-2xl">{liveGames.length ?? 0}</div>
             <p className="text-xs text-gray-500 mt-1">
               In progress now
             </p>
@@ -80,7 +68,7 @@ export default function Dashboard({ user }: DashboardProps) {
             <Calendar className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">{todayGames.length}</div>
+            <div className="text-2xl">{todayGames.length ?? 0}</div>
             <p className="text-xs text-gray-500 mt-1">
               Scheduled for today
             </p>
@@ -93,7 +81,7 @@ export default function Dashboard({ user }: DashboardProps) {
             <Users className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">{displayTeams.length}</div>
+            <div className="text-2xl">{topTeamsData.length ?? 0}</div>
             <p className="text-xs text-gray-500 mt-1">
               {permissions.teamsVisible === 'all' ? 'All teams' : `Top ${permissions.teamsVisible} only`}
             </p>
@@ -106,7 +94,7 @@ export default function Dashboard({ user }: DashboardProps) {
             <Trophy className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">{mockPlayers.length}</div>
+            <div className="text-2xl">{data?.playerCount ?? 0}</div>
             <p className="text-xs text-gray-500 mt-1">
               Tracking performance
             </p>
@@ -115,20 +103,18 @@ export default function Dashboard({ user }: DashboardProps) {
       </div>
 
       {/* Live Games Section */}
-      {liveGames.length > 0 && (
+      {error && <div className="text-red-600">{error}</div>}
+      {loading && <div className="text-gray-500">Loading dashboard...</div>}
+      {!loading && !error && liveGames.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Live Games</CardTitle>
-                <CardDescription>
-                  {shouldApplyDelay(user) 
-                    ? `Delayed updates (${permissions.realtimeDelayMinutes} min delay)` 
-                    : 'Real-time scores and updates'}
-                </CardDescription>
+                <CardDescription>Real-time scores and updates</CardDescription>
               </div>
               <Badge className="bg-red-600">
-                {shouldApplyDelay(user) ? `DELAYED` : 'LIVE'}
+                LIVE
               </Badge>
             </div>
           </CardHeader>
@@ -148,7 +134,7 @@ export default function Dashboard({ user }: DashboardProps) {
                   </div>
                   <div className="ml-6 text-right">
                     <Badge variant="outline" className="text-red-600 border-red-300">
-                      Q3 8:45
+                      {game.quarter || 'In Progress'}
                     </Badge>
                   </div>
                 </div>
