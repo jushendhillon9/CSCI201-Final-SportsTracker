@@ -1,87 +1,82 @@
 import { useState, useEffect } from 'react';
-
 import { useNavigate } from 'react-router-dom';
-
 import { Button } from './figma-ui/button';
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './figma-ui/card';
-
 import { Input } from './figma-ui/input';
-
 import { Label } from './figma-ui/label';
-
 import { type User } from '../App';
-
 import { Shield, TrendingUp, Users, BarChart3 } from 'lucide-react';
 
 declare const google: any;
 
-
-
 interface LoginPageProps {
-
   onLogin: (user: User) => void;
-
 }
 
-
-
 export default function LoginPage({ onLogin }: LoginPageProps) {
-
   const [email, setEmail] = useState('');
-
   const [password, setPassword] = useState('');
-
   const [loading, setLoading] = useState(false);
-
   const navigate = useNavigate();
 
+  const clientID = '183700834954-uhqj0th2d6flunub0cr9gp625jct9fod.apps.googleusercontent.com';
+  // function to safely decode the JWT
+  function decodeJWT(token: string) {
+    return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  }
 
+  //Handle Google Credential Response
+  const handleCredentialResponse = (response: any) => {
+    if (!response.credential) {
+      return;
+    }
+    const decoded = decodeJWT(response.credential);
+    const user: User = {
+      userid: Date.now(),
+      email: decoded.email,
+      name: decoded.name,
+      role: 'user'
+    };
+    onLogin(user);
+    navigate('/dashboard');
+  };
 
   // Load Google Identity Services SDK
-
   useEffect(() => {
-
-    const script = document.createElement('script');
-
-    script.src = 'https://accounts.google.com/gsi/client';
-
-    script.async = true;
-
-    script.defer = true;
-
-    script.onload = () => {
-
-      console.log("Google SDK loaded");
-
-    };
-
-    document.body.appendChild(script);
-
-    return () => {
-
-      document.body.removeChild(script);
-
-    };
-
+    const existingScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+    if (!existingScript) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        console.log('Google SDK loaded');
+        google.accounts.id.initialize({
+          client_id: clientID,
+          callback: handleCredentialResponse
+        });
+      };
+      document.body.appendChild(script);
+      return () => {
+        document.body.removeChild(script);
+      };
+    }
+    else {
+      google.accounts.id.initialize({
+        client_id: clientID,
+        callback: handleCredentialResponse
+      });
+    }
   }, []);
 
-
-
   const handleGoogleLogin = () => {
-
-    // Check if the SDK is ready
-
-    if (typeof google === "undefined" || !google.accounts) {
-
-      alert("Google login is still loading, please try again in a second.");
-
+    if (!google || !google.accounts) {
+      alert('Google login is still loading, please try again in a second.');
       return;
-
     }
-
     setLoading(true);
-
+    google.accounts.id.prompt();
+  
     // // Simulate Auth0 Google SSO
 
     // setTimeout(() => {
@@ -103,58 +98,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     //   navigate('/dashboard');
 
     // }, 1000);
-
-    const clientID = '183700834954-5e1pkctl2rioa7spm7rhie0pq3ennoda.apps.googleusercontent.com';
-
-    // function to safely decode the JWT
-
-    function decodeJWT(token: string) {
-
-      return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/-/g, '/')));
-
-    }
-
-    // Initialize the Google Sign-In
-
-    google.accounts.id.initialize({
-
-      client_id: clientID,
-
-      callback: (response: any) => {
-
-        const credential = response.credential;
-
-        // decode the JTW
-
-        const decoded = decodeJWT(credential);
-
-        const user: User = {
-
-          userid: Date.now(),
-
-          email: decoded.email,
-
-          name: decoded.name,
-
-          role: 'user'
-
-        };
-
-        onLogin(user);
-
-        navigate('/dashboard');
-
-      }
-
-    });
-
-    // Show the Google Login prompt
-
-    google.accounts.id.prompt();
-
   };
-
-
 
   const handleGuestAccess = () => {
 
