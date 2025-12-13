@@ -25,11 +25,15 @@ export const api = {
     const suffix = qs.toString() ? `?${qs.toString()}` : '';
     return get<any[]>(`/api/games${suffix}`);
   },
-  getPlayers: (params?: { teamId?: string; position?: string; search?: string }) => {
+  getPlayers: (params?: { teamId?: string; position?: string; search?: string; season?: string; limit?: number; sort?: string }) => {
     const qs = new URLSearchParams();
     if (params?.teamId) qs.set('teamId', params.teamId);
     if (params?.position && params.position !== 'all') qs.set('position', params.position);
     if (params?.search) qs.set('search', params.search);
+    const season = params?.season ?? String(new Date().getFullYear());
+    qs.set('season', season);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.sort) qs.set('sort', params.sort);
     const suffix = qs.toString() ? `?${qs.toString()}` : '';
     return get<any[]>(`/api/players${suffix}`);
   },

@@ -21,34 +21,51 @@ export default function PlayersPage({ user }: PlayersPageProps) {
   const [players, setPlayers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const MAX_PLAYERS = 100;
+  const MAX_PLAYERS = 25;
 
   const positions = ['all', ...new Set(players.map(p => p.position).filter(Boolean))];
 
-  const filteredPlayers = players.filter(player => {
-    const matchesSearch = player.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         player.teamName?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPosition = positionFilter === 'all' || player.position === positionFilter;
-    return matchesSearch && matchesPosition;
+  // Aggregate stats if provided in payload
+  const playerStats = players.map(player => {
+    const playerId = player.playerId ?? player.playerid;
+    const jerseyNumber = player.jerseyNumber ?? player.jersey_number;
+    return {
+      ...player,
+      playerId,
+      jerseyNumber,
+      passingYards: player.passingYards ?? player.passing_yards ?? 0,
+      rushingYards: player.rushingYards ?? player.rushing_yards ?? 0,
+      receivingYards: player.receivingYards ?? player.receiving_yards ?? 0,
+      totalTDs: player.totalTDs ?? player.total_tds ?? 0,
+      gamesPlayed: player.gamesPlayed ?? player.games_played ?? 0,
+    };
   });
 
-  // Aggregate stats if provided in payload
-  const playerStats = players.map(player => ({
-    ...player,
-    passingYards: player.passingYards ?? player.passing_yards ?? 0,
-    rushingYards: player.rushingYards ?? player.rushing_yards ?? 0,
-    receivingYards: player.receivingYards ?? player.receiving_yards ?? 0,
-    totalTDs: player.totalTDs ?? player.total_tds ?? 0,
-    gamesPlayed: player.gamesPlayed ?? player.games_played ?? 0,
-  }));
-
-  useEffect(() => {
+  const fetchPlayers = (params?: { search?: string; position?: string }) => {
     setLoading(true);
-    api.getPlayers()
+    setError(null);
+    api.getPlayers({
+      season: String(new Date().getFullYear()),
+      search: params?.search,
+      position: params?.position && params.position !== 'all' ? params.position : undefined,
+      limit: MAX_PLAYERS,
+      sort: 'tds'
+    })
       .then(setPlayers)
       .catch(err => setError(err.message || 'Failed to load players'))
       .finally(() => setLoading(false));
+  };
+
+  // Initial load: top 25 by TDs
+  useEffect(() => {
+    fetchPlayers();
   }, []);
+
+  const filteredPlayers = playerStats.filter(p => {
+    const matchesSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.teamName?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesPosition = positionFilter === 'all' || p.position === positionFilter;
+    return matchesSearch && matchesPosition;
+  });
 
   const positionColors: Record<string, string> = {
     QB: 'bg-blue-100 text-blue-700 border-blue-300',
@@ -107,10 +124,10 @@ export default function PlayersPage({ user }: PlayersPageProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {loading && <div className="text-gray-500">Loading players...</div>}
             {error && <div className="text-red-600">{error}</div>}
-            {!loading && !error && filteredPlayers.slice(0, MAX_PLAYERS).map(player => {
-              const stats = playerStats.find(p => p.playerid === player.playerid);
+            {!loading && !error && filteredPlayers.map(player => {
+              const stats = player;
               return (
-                <Card key={player.playerid} className="hover:shadow-lg transition-shadow">
+                <Card key={player.playerId ?? player.playerid ?? player.name} className="hover:shadow-lg transition-shadow">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -119,7 +136,9 @@ export default function PlayersPage({ user }: PlayersPageProps) {
                           <Badge variant="outline" className={positionColors[player.position] || ''}>
                             {player.position}
                           </Badge>
-                          <span className="text-sm text-gray-600">{player.year}</span>
+                          {stats.jerseyNumber && (
+                            <span className="text-sm text-gray-600">#{stats.jerseyNumber}</span>
+                          )}
                         </div>
                       </div>
                       <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
@@ -153,8 +172,12 @@ export default function PlayersPage({ user }: PlayersPageProps) {
                         <span className="text-gray-900">{stats?.totalTDs || 0}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Games Played</span>
-                        <span className="text-gray-900">{stats?.gamesPlayed || 0}</span>
+                        <span className="text-gray-600">
+                          {player.position === 'QB' ? 'Passing Yards' : player.position === 'RB' ? 'Rushing Yards' : 'Receiving Yards'}
+                        </span>
+                        <span className="text-gray-900">
+                          {player.position === 'QB' ? stats?.passingYards || 0 : player.position === 'RB' ? stats?.rushingYards || 0 : stats?.receivingYards || 0}
+                        </span>
                       </div>
                       {permissions.statsDepth === 'full' && (
                         <>
@@ -163,10 +186,10 @@ export default function PlayersPage({ user }: PlayersPageProps) {
                             <div className="flex justify-between text-xs">
                               <span className="text-gray-600">Yards/Attempt</span>
                               <span className="text-gray-900">
-                                {player.position === 'QB' && stats?.passingYards && stats?.gamesPlayed
-                                  ? (stats.passingYards / (stats.gamesPlayed * 30)).toFixed(1)
-                                  : player.position === 'RB' && stats?.rushingYards && stats?.gamesPlayed
-                                  ? (stats.rushingYards / (stats.gamesPlayed * 15)).toFixed(1)
+                                {player.position === 'QB' && stats?.passingYards
+                                  ? (stats.passingYards / 30).toFixed(1)
+                                  : player.position === 'RB' && stats?.rushingYards
+                                  ? (stats.rushingYards / 15).toFixed(1)
                                   : '-'}
                               </span>
                             </div>
@@ -179,8 +202,8 @@ export default function PlayersPage({ user }: PlayersPageProps) {
               );
             })}
           </div>
-          {!loading && !error && filteredPlayers.length > MAX_PLAYERS && (
-            <div className="text-xs text-gray-500">Showing first {MAX_PLAYERS} players. Refine your search to narrow results.</div>
+          {!loading && !error && filteredPlayers.length === 0 && (
+            <div className="text-xs text-gray-500">No players found. Adjust your search.</div>
           )}
         </TabsContent>
 
@@ -205,24 +228,22 @@ export default function PlayersPage({ user }: PlayersPageProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {playerStats.filter(p => 
-                    (positionFilter === 'all' || p.position === positionFilter) &&
-                    (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                     p.teamName?.toLowerCase().includes(searchQuery.toLowerCase()))
-                  ).map(player => (
-                    <TableRow key={player.playerid}>
+                  {filteredPlayers.map(player => (
+                    <TableRow key={player.playerId ?? player.playerid ?? player.name}>
                       <TableCell className="text-gray-900">{player.name}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={positionColors[player.position] || ''}>
                           {player.position}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-gray-600">{player.teamName}</TableCell>
+                      <TableCell className="text-gray-600">
+                        {player.teamName}
+                        {player.jerseyNumber && <span className="text-xs text-gray-500 ml-1">#{player.jerseyNumber}</span>}
+                      </TableCell>
                       <TableCell className="text-right">{player.passingYards || '-'}</TableCell>
                       <TableCell className="text-right">{player.rushingYards || '-'}</TableCell>
                       <TableCell className="text-right">{player.receivingYards || '-'}</TableCell>
                       <TableCell className="text-right">{player.totalTDs}</TableCell>
-                      <TableCell className="text-right">{player.gamesPlayed}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -232,7 +253,7 @@ export default function PlayersPage({ user }: PlayersPageProps) {
         </TabsContent>
       </Tabs>
 
-      {filteredPlayers.length === 0 && (
+      {players.length === 0 && !loading && !error && (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-gray-500">No players found matching your filters.</p>

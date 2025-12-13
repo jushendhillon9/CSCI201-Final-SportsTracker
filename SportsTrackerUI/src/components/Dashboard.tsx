@@ -31,6 +31,20 @@ export default function Dashboard({ user }: DashboardProps) {
   const liveGames = data?.liveGames ?? [];
   const todayGames = data?.upcomingGamesToday ?? [];
 
+  const formatDateTime = (dateString?: string) => {
+    if (!dateString) return 'TBD';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return 'TBD';
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
+  };
+
+  const formatDay = (dateString?: string) => {
+    if (!dateString) return '';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
   const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#ea580c', '#8b5cf6'];
 
   return (
@@ -222,30 +236,33 @@ export default function Dashboard({ user }: DashboardProps) {
       {/* Upcoming Games */}
       <Card>
         <CardHeader>
-          <CardTitle>Upcoming Games Today</CardTitle>
-          <CardDescription>Scheduled matchups for November 9, 2025</CardDescription>
+          <CardTitle>Upcoming Games</CardTitle>
+          <CardDescription>
+            {todayGames.length > 0
+              ? `Scheduled matchups starting ${formatDay(todayGames[0].date)}`
+              : 'No scheduled games in the next week'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {todayGames.filter(g => g.status === 'scheduled').map(game => (
-              <div key={game.gameid} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            {todayGames.filter((g: any) => g.status === 'scheduled').map((game: any) => (
+              <div key={game.gameId ?? game.gameid ?? `${game.homeTeam}-${game.awayTeam}-${game.date}`} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-gray-900">{game.away_team_name}</span>
+                    <span className="text-gray-900">{game.awayTeam ?? game.away_team_name ?? 'TBD'}</span>
                     <span className="text-gray-500">@</span>
-                    <span className="text-gray-900">{game.home_team_name}</span>
+                    <span className="text-gray-900">{game.homeTeam ?? game.home_team_name ?? 'TBD'}</span>
                   </div>
                   <p className="text-sm text-gray-500">
-                    {new Date(game.game_date).toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      timeZone: 'America/New_York'
-                    })} ET
+                    {formatDateTime(game.date ?? game.game_date)}
                   </p>
                 </div>
-                <Badge variant="outline">Scheduled</Badge>
+                <Badge variant="outline">{(game.status || 'scheduled').toUpperCase()}</Badge>
               </div>
             ))}
+            {todayGames.filter((g: any) => g.status === 'scheduled').length === 0 && (
+              <div className="text-sm text-gray-500">No upcoming games found.</div>
+            )}
           </div>
         </CardContent>
       </Card>

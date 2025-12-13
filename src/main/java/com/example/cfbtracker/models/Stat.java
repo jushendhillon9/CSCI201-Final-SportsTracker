@@ -18,8 +18,8 @@ public class Stat {
     @JoinColumn(name = "playerid", nullable = false)
     private Player player;
 
-    @ManyToOne
-    @JoinColumn(name = "gameid", nullable = false)
+    @ManyToOne(optional = true)
+    @JoinColumn(name = "gameid", nullable = true)
     private Game game;
 
     public Stat() {} // required

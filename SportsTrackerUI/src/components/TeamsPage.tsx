@@ -26,11 +26,20 @@ export default function TeamsPage({ user }: TeamsPageProps) {
 
   const conferences = ['all', ...new Set(teams.map(t => t.conference).filter(Boolean))];
 
-  const filteredTeams = allTeams.filter(team => {
+  const filteredTeamsRaw = allTeams.filter(team => {
     const matchesSearch = team.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesConference = conferenceFilter === 'all' || team.conference === conferenceFilter;
     return matchesSearch && matchesConference;
   });
+
+  // Official AP-style ordering: ranked teams first (lowest rank number at top), then unranked.
+  const ranked = filteredTeamsRaw
+    .filter(t => t.ranking != null)
+    .sort((a, b) => (a.ranking ?? Number.POSITIVE_INFINITY) - (b.ranking ?? Number.POSITIVE_INFINITY));
+  const unranked = filteredTeamsRaw.filter(t => t.ranking == null)
+    .sort((a, b) => (b.wins ?? 0) - (a.wins ?? 0));
+
+  const filteredTeams = [...ranked, ...unranked].slice(0, 25);
 
   useEffect(() => {
     setLoading(true);

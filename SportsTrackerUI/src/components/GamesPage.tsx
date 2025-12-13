@@ -37,6 +37,7 @@ export default function GamesPage({ user }: GamesPageProps) {
   
   // Apply delay for guests - filter live games to show only those before the delayed timestamp
   const delayedTimestamp = shouldApplyDelay(user) ? getDelayedTimestamp(user) : new Date();
+  const now = new Date();
   const filteredGames = games.filter(game => {
     if ((game.status === 'live' || game.status === 'in_progress') && shouldApplyDelay(user)) {
       const gameDate = new Date((game.date || '').replace(' ', 'T'));
@@ -45,9 +46,24 @@ export default function GamesPage({ user }: GamesPageProps) {
     return true;
   });
   
-  const liveGames = filteredGames.filter(g => g.status === 'live' || g.status === 'in_progress');
-  const scheduledGames = filteredGames.filter(g => g.status === 'scheduled');
+  const isLiveLike = (g: GameDto) => {
+    if (g.status === 'live' || g.status === 'in_progress') return true;
+    if (g.status === 'scheduled' && g.date) {
+      const start = new Date(g.date.replace(' ', 'T'));
+      return !isNaN(start.getTime()) && start <= now;
+    }
+    return false;
+  };
+
+  const liveGames = filteredGames.filter(isLiveLike);
+  const scheduledGames = filteredGames.filter(g => g.status === 'scheduled' && !isLiveLike(g));
   const completedGames = filteredGames.filter(g => g.status === 'completed' || g.status === 'final');
+  const parseDate = (d?: string) => {
+    if (!d) return Number.MAX_SAFE_INTEGER;
+    const dt = new Date(d.replace(' ', 'T'));
+    return isNaN(dt.getTime()) ? Number.MAX_SAFE_INTEGER : dt.getTime();
+  };
+  const scheduledSorted = [...scheduledGames].sort((a, b) => parseDate(a.date) - parseDate(b.date));
 
   useEffect(() => {
     setLoading(true);
@@ -81,7 +97,9 @@ export default function GamesPage({ user }: GamesPageProps) {
   };
 
   const GameCard = ({ game }: { game: GameDto }) => {
-    const isLive = game.status === 'live' || game.status === 'in_progress';
+    const startTime = game.date ? new Date(game.date.replace(' ', 'T')) : null;
+    const isStarting = game.status === 'scheduled' && startTime && !isNaN(startTime.getTime()) && startTime <= now;
+    const isLive = game.status === 'live' || game.status === 'in_progress' || isStarting;
     const isCompleted = game.status === 'completed' || game.status === 'final';
 
     return (
@@ -93,8 +111,8 @@ export default function GamesPage({ user }: GamesPageProps) {
               <span className="text-sm text-gray-600">{formatDate(game.date)}</span>
             </div>
             {isLive && (
-              <Badge className={shouldApplyDelay(user) ? "bg-orange-600" : "bg-red-600"}>
-                {shouldApplyDelay(user) ? `DELAYED (${permissions.realtimeDelayMinutes}m)` : 'LIVE'}
+              <Badge className="bg-blue-600">
+                In Progress
               </Badge>
             )}
             {isCompleted && (
@@ -103,10 +121,15 @@ export default function GamesPage({ user }: GamesPageProps) {
                 Final
               </Badge>
             )}
-            {game.status === 'scheduled' && (
+            {game.status === 'scheduled' && !isStarting && (
               <Badge variant="outline">
                 <Clock className="h-3 w-3 mr-1" />
                 {formatTime(game.date)} ET
+              </Badge>
+            )}
+            {isStarting && (
+              <Badge className="bg-orange-600">
+                Starting
               </Badge>
             )}
           </div>
@@ -133,9 +156,6 @@ export default function GamesPage({ user }: GamesPageProps) {
                   <div className="text-xs text-gray-500">Away</div>
                 </div>
               </div>
-              {(isLive || isCompleted) && (
-                <div className="text-3xl text-gray-900">{game.awayScore ?? 0}</div>
-              )}
             </div>
 
             {/* VS Divider */}
@@ -165,9 +185,6 @@ export default function GamesPage({ user }: GamesPageProps) {
                   <div className="text-xs text-gray-500">Home</div>
                 </div>
               </div>
-              {(isLive || isCompleted) && (
-                <div className="text-3xl text-gray-900">{game.homeScore ?? 0}</div>
-              )}
             </div>
 
             {/* Game Info */}
@@ -240,7 +257,7 @@ export default function GamesPage({ user }: GamesPageProps) {
             Live ({liveGames.length})
           </TabsTrigger>
           <TabsTrigger value="scheduled">
-            Scheduled ({scheduledGames.length})
+            Scheduled ({scheduledSorted.length})
           </TabsTrigger>
           <TabsTrigger value="completed">
             Completed ({completedGames.length})
@@ -270,9 +287,9 @@ export default function GamesPage({ user }: GamesPageProps) {
         <TabsContent value="scheduled" className="space-y-4">
           {loading && <div className="text-gray-500">Loading games...</div>}
           {error && <div className="text-red-600">{error}</div>}
-          {!loading && !error && scheduledGames.length > 0 ? (
+          {!loading && !error && scheduledSorted.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {scheduledGames.map(game => (
+              {scheduledSorted.map(game => (
                 <GameCard key={game.gameId ?? game.gameid} game={game} />
               ))}
             </div>

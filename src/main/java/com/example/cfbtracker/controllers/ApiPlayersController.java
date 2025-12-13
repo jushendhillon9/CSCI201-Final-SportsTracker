@@ -24,8 +24,11 @@ public class ApiPlayersController {
             @RequestParam(value = "teamId", required = false) Integer teamId,
             @RequestParam(value = "position", required = false) String position,
             @RequestParam(value = "search", required = false) String search,
-            @RequestParam(value = "force", required = false, defaultValue = "false") boolean force
+            @RequestParam(value = "force", required = false, defaultValue = "false") boolean force,
+            @RequestParam(value = "season", required = false) Integer season,
+            @RequestParam(value = "limit", required = false) Integer limit,
+            @RequestParam(value = "sort", required = false) String sort
     ) {
-        return playerService.getPlayers(teamId, position, search, force);
+        return playerService.getPlayers(teamId, position, search, force, season, limit, sort);
     }
 }

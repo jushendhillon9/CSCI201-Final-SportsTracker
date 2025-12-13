@@ -227,6 +227,39 @@ public class CFBDService {
         }
     }
 
+    /**
+     * Season-level player stats (aggregates) endpoint.
+     */
+    public CFBDPlayerStatDTO[] fetchPlayerSeasonStats(Integer season, String teamName, String seasonType) {
+        StringJoiner params = new StringJoiner("&", "?", "");
+        if (season != null) params.add("year=" + season);
+        if (teamName != null && !teamName.isBlank()) params.add("team=" + teamName);
+        if (seasonType != null && !seasonType.isBlank()) params.add("seasonType=" + seasonType);
+        String url = baseUrl + "/stats/player/season" + (params.length() > 1 ? params.toString() : "");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        if (apiKey != null && !apiKey.isBlank()) {
+            headers.setBearerAuth(apiKey);
+        } else {
+            log.warn("CFBD API key is missing; request may fail with 401");
+        }
+
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<CFBDPlayerStatDTO[]> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    request,
+                    CFBDPlayerStatDTO[].class
+            );
+            return response.getBody();
+        } catch (RestClientException ex) {
+            log.error("Failed to fetch season player stats from CFBD", ex);
+            return new CFBDPlayerStatDTO[0];
+        }
+    }
+
     public CFBDRosterPlayerDTO[] fetchRoster(Integer season, String teamName) {
         StringJoiner params = new StringJoiner("&", "?", "");
         if (season != null) params.add("year=" + season);

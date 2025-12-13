@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 
 import com.example.cfbtracker.services.CFBDService;
 import java.time.Year;
+import java.util.ArrayList;
 
 @Service
 public class PlayerService {
@@ -44,15 +45,15 @@ public class PlayerService {
         return playerRepository.findAll();
     }
 
-    public List<PlayerListItem> getPlayers(Integer teamId, String position, String search, boolean forceRefresh) {
+    public List<PlayerListItem> getPlayers(Integer teamId, String position, String search, boolean forceRefresh, Integer season, Integer limit, String sort) {
         // simple refresh before serve; replace with last-updated check in production
-        Integer seasonCurrent = Year.now().getValue();
+        Integer seasonCurrent = season != null ? season : Year.now().getValue();
         String teamName = null;
         if (teamId != null) {
             teamName = teamRepository.findById(teamId).map(Team::getName).orElse(null);
         }
 
-        // Avoid long fetches on every request; only ingest if forced or empty
+        // Avoid long fetches on every request; only ingest if forced or no players at all
         long existingCount = playerRepository.count();
         int ingested = 0;
         if (forceRefresh || existingCount == 0) {
@@ -84,11 +85,36 @@ public class PlayerService {
             players = playerRepository.findByPositionIgnoreCase(position);
         } else if (search != null && !search.isBlank()) {
             players = playerRepository.findByNameContainingIgnoreCase(search);
+        } else if (limit != null && sort != null && sort.equalsIgnoreCase("tds")) {
+            // Fast path: top players by TDs from stats table
+            List<Object[]> top = statRepository.findTopPlayersByTds(seasonCurrent, "td");
+            List<Integer> ids = new ArrayList<>();
+            for (Object[] row : top) {
+                if (ids.size() >= limit) break;
+                Integer pid = (Integer) row[0];
+                if (pid != null) ids.add(pid);
+            }
+            players = ids.isEmpty() ? playerRepository.findAll() : playerRepository.findAllById(ids);
         } else {
             players = playerRepository.findAll();
         }
 
-        return players.stream().map(this::toDto).collect(Collectors.toList());
+        final Integer statSeason = seasonCurrent;
+        List<PlayerListItem> dtoList = players.stream().map(p -> toDto(p, statSeason)).collect(Collectors.toList());
+
+        if (sort != null && sort.equalsIgnoreCase("tds")) {
+            dtoList = dtoList.stream()
+                    .sorted((a, b) -> Integer.compare(
+                            b.getTotalTDs() == null ? 0 : b.getTotalTDs(),
+                            a.getTotalTDs() == null ? 0 : a.getTotalTDs()))
+                    .collect(Collectors.toList());
+        }
+
+        if (limit != null && limit > 0 && dtoList.size() > limit) {
+            dtoList = dtoList.subList(0, limit);
+        }
+
+        return dtoList;
     }
 
     public Player savePlayer(Player player) {
@@ -209,26 +235,33 @@ public class PlayerService {
             }
             playerRepository.save(player);
 
-            // Persist raw stat row
-            Stat stat = new Stat();
-            stat.setSeason(s.getSeason());
+            // Persist raw stat row (allow game null for season aggregates), but only keep TDs / yards / games to save space
             String typeLabel = cat;
             if (s.getStatType() != null && !s.getStatType().isBlank()) {
                 typeLabel = (cat + "_" + s.getStatType()).toLowerCase();
             }
-            stat.setStat_type(typeLabel);
-            stat.setValue(s.getStat());
-            stat.setPlayer(player);
-            if (s.getGameId() != null) {
-                gameRepository.findById(s.getGameId()).ifPresent(stat::setGame);
+            boolean keep = typeLabel.contains("td") ||
+                           typeLabel.contains("yard") ||
+                           typeLabel.contains("yd") ||
+                           typeLabel.contains("game") ||
+                           typeLabel.contains("gp");
+            if (keep) {
+                Stat stat = new Stat();
+                stat.setSeason(s.getSeason());
+                stat.setStat_type(typeLabel);
+                stat.setValue(s.getStat());
+                stat.setPlayer(player);
+                if (s.getGameId() != null) {
+                    stat.setGame(gameRepository.findById(s.getGameId()).orElse(null));
+                }
+                statRepository.save(stat);
             }
-            statRepository.save(stat);
             count++;
         }
         return count;
     }
 
-    private PlayerListItem toDto(Player player) {
+    private PlayerListItem toDto(Player player, Integer season) {
         PlayerListItem dto = new PlayerListItem();
         dto.setPlayerId(player.getPlayerid());
         dto.setName(player.getName());
@@ -238,9 +271,53 @@ public class PlayerService {
         }
         dto.setPosition(player.getPosition());
         dto.setYear(player.getYear());
-        dto.setPassingYards(player.getPassing_yards() == null ? 0 : player.getPassing_yards());
-        dto.setRushingYards(player.getRushing_yards() == null ? 0 : player.getRushing_yards());
-        dto.setReceivingYards(player.getReceiving_yards() == null ? 0 : player.getReceiving_yards());
+        dto.setJerseyNumber(player.getJersey_number());
+        int pass = player.getPassing_yards() == null ? 0 : player.getPassing_yards();
+        int rush = player.getRushing_yards() == null ? 0 : player.getRushing_yards();
+        int recv = player.getReceiving_yards() == null ? 0 : player.getReceiving_yards();
+        int tds = 0;
+        int gamesPlayed = 0;
+        List<Stat> stats = List.of();
+        if (season != null) {
+            stats = statRepository.findByPlayerPlayeridAndSeason(player.getPlayerid(), season);
+        } else {
+            stats = statRepository.findByPlayerPlayerid(player.getPlayerid());
+        }
+        if (stats != null && !stats.isEmpty()) {
+            pass = stats.stream()
+                    .filter(s -> s.getStat_type() != null && s.getStat_type().contains("pass") && s.getStat_type().contains("yard"))
+                    .mapToInt(s -> s.getValue() == null ? 0 : s.getValue().intValue())
+                    .sum();
+            rush = stats.stream()
+                    .filter(s -> s.getStat_type() != null && s.getStat_type().contains("rush") && s.getStat_type().contains("yard"))
+                    .mapToInt(s -> s.getValue() == null ? 0 : s.getValue().intValue())
+                    .sum();
+            recv = stats.stream()
+                    .filter(s -> s.getStat_type() != null && s.getStat_type().contains("recv") && s.getStat_type().contains("yard"))
+                    .mapToInt(s -> s.getValue() == null ? 0 : s.getValue().intValue())
+                    .sum();
+            tds = stats.stream()
+                    .filter(s -> s.getStat_type() != null && s.getStat_type().contains("td"))
+                    .mapToInt(s -> s.getValue() == null ? 0 : s.getValue().intValue())
+                    .sum();
+            gamesPlayed = stats.stream()
+                    .filter(s -> s.getStat_type() != null && (s.getStat_type().contains("game") || s.getStat_type().contains("gp")))
+                    .mapToInt(s -> s.getValue() == null ? 0 : s.getValue().intValue())
+                    .sum();
+            // Fallback: if no explicit games stat, count distinct non-null game ids
+            if (gamesPlayed == 0) {
+                gamesPlayed = (int) stats.stream()
+                        .filter(s -> s.getGame() != null && s.getGame().getGameid() != null)
+                        .map(s -> s.getGame().getGameid())
+                        .distinct()
+                        .count();
+            }
+        }
+        dto.setPassingYards(pass);
+        dto.setRushingYards(rush);
+        dto.setReceivingYards(recv);
+        dto.setTotalTDs(tds);
+        dto.setGamesPlayed(gamesPlayed);
         return dto;
     }
 

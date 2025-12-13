@@ -19,6 +19,6 @@ public class PlayersController {
 
     @GetMapping
     public List<PlayerListItem> getAllPlayers() {
-        return playerService.getPlayers(null, null, null, false);
+        return playerService.getPlayers(null, null, null, false, null, null, null);
     }
 }

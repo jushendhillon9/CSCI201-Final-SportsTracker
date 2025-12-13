@@ -183,12 +183,24 @@ public class TeamService {
     public int ingestRankings(Integer season, Integer week) {
         CFBDRankingDTO[] rankings = cfbdService.fetchRankings(season, week);
         if (rankings == null) return 0;
+        // Reset all rankings before applying new poll so unranked teams stay null
+        teamRepository.findAll().forEach(t -> {
+            t.setRanking(null);
+            teamRepository.save(t);
+        });
         int count = 0;
         for (CFBDRankingDTO dto : rankings) {
             if (dto.getPolls() == null) continue;
             // pick first poll that has ranks (prefer CFP or AP)
             CFBDRankingDTO.Poll selected = dto.getPolls().stream()
                     .filter(p -> p.getRanks() != null && !p.getRanks().isEmpty())
+                    .sorted((a, b) -> {
+                        // prioritize AP Top 25 over others
+                        boolean aAp = a.getPoll() != null && a.getPoll().toLowerCase().contains("ap");
+                        boolean bAp = b.getPoll() != null && b.getPoll().toLowerCase().contains("ap");
+                        if (aAp == bAp) return 0;
+                        return aAp ? -1 : 1;
+                    })
                     .findFirst()
                     .orElse(null);
             if (selected == null) continue;
