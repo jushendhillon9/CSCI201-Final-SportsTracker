@@ -8,7 +8,7 @@ import { type User } from '../App';
 import { Shield, TrendingUp, Users, BarChart3 } from 'lucide-react';
 
 const CLIENT_ID = '183700834954-uhqj0th2d6flunub0cr9gp625jct9fod.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/devstorage.read_write';
+const SCOPES = ['openid', 'email', 'profile'].join(' ');
 
 interface LoginPageProps {
   onLogin: (user: User) => void;
@@ -35,23 +35,37 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       tokenClientRef.current = (window as any).google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
-        callback: (resp: any) => {
-          if (resp && resp.access_token) {
-            console.log('Google sign-in success. Access token:', resp.access_token);
-            localStorage.setItem('accessToken', resp.access_token);
-            
-            // Create user object - you can extract more info from the token if needed
+        callback: async (resp: any) => {
+          if (!resp?.access_token) {
+            console.error('No access token returned:', resp);
+            setLoading(false);
+            return;
+          }
+          try {
+            const userInfoRes = await fetch(
+              'https://www.googleapis.com/oauth2/v3/userinfo',
+              {
+                headers: {
+                   Authorization: `Bearer ${resp.access_token}`,
+                },
+              }
+            );
+            if (!userInfoRes.ok) {
+              throw new Error('Failed to fetch Google user info');
+            }
+            const userInfo = await userInfoRes.json();
             const user: User = {
               userid: Date.now(),
-              email: 'user@usc.edu', // You might want to decode the token to get actual email
-              role: 'user',
-              name: 'Google User' // You might want to decode the token to get actual name
+              email: userInfo.email,
+              name: userInfo.name,
+              role: 'user'
             };
-            
+            localStorage.setItem('accessToken', resp.access_token);
             onLogin(user);
             navigate('/dashboard');
-          } else {
-            console.error('No access token returned:', resp);
+          }
+          catch (err) {
+            console.error('Google login failed:', err);
             setLoading(false);
           }
         },
